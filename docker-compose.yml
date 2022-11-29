@@ -1,0 +1,70 @@
+version: "3.0"
+services:
+  elasticsearch:
+    container_name: es-container
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.11.0
+    environment:
+      - xpack.security.enabled=false
+      - "discovery.type=single-node"
+    networks:
+      - es-net
+    ports:
+      - 9200:9200
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+  kibana:
+    container_name: kb-container
+    image: docker.elastic.co/kibana/kibana:7.11.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://es-container:9200
+    networks:
+      - es-net
+    depends_on:
+      - elasticsearch
+    ports:
+      - 5601:5601
+  logstash:
+    container_name: lg-container
+    image: docker.elastic.co/logstash/logstash:7.8.0
+    volumes:
+      - type: bind
+        source: ./logstash/config/logstash.yml
+        target: /usr/share/logstash/config/logstash.yml
+        read_only: true
+      - type: bind
+        source: ./logstash/pipeline
+        target: /usr/share/logstash/pipeline
+        read_only: true
+      - type: bind
+        source: ./logstash/lib/jars/mssql-jdbc-11.2.0.jre8.jar
+        target: /usr/share/logstash/logstash-core/lib/jars/mssql-jdbc-11.2.0.jre8.jar
+        read_only: true
+    ports:
+      - "5001:5001"
+    restart: always
+    environment:
+      LS_JAVA_OPTS: "-Xmx512m -Xms512m"
+    networks:
+      - es-net
+    depends_on:
+      - elasticsearch
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: mssql-container
+    user: root
+    ports:
+        - '1401:1433'
+    environment:
+        - ACCEPT_EULA=Y
+        - MSSQL_SA_PASSWORD=Ester*2534
+        - MSSQL_DATA_DIR=/mssql/data
+    volumes:      
+        - mssql-es-data:/var/opt/mssql
+networks:
+  es-net:
+    driver: bridge
+volumes:
+  elasticsearch-data:
+    driver: local
+  mssql-es-data:
+    driver: local
